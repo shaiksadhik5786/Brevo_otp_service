@@ -17,51 +17,62 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class ApiKeyFilter extends OncePerRequestFilter {
 
-	@Value("${app.api-key}")
-	private String apiKey;
+    @Value("${app.api-key}")
+    private String apiKey;
 
-	private static final String API_KEY_HEADER = "API-KEY";
+    private static final String API_KEY_HEADER = "X-API-Key";
 
-	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-			throws ServletException, IOException {
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain)
+            throws ServletException, IOException {
 
-		String requestUri = request.getRequestURI();
+        // Allow CORS preflight requests
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-		// Allow health check without API key
-		if (requestUri.equals("/api/otp/health")) {
-			filterChain.doFilter(request, response);
-			return;
-		}
+        // Allow health endpoint without API key
+        if (request.getRequestURI().equals("/api/otp/health")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-		String requestApiKey = request.getHeader(API_KEY_HEADER);
+        String requestApiKey = request.getHeader(API_KEY_HEADER);
 
-		if (requestApiKey == null || requestApiKey.isBlank()) {
-			sendUnauthorized(response, "API key is required");
-			return;
-		}
+        if (requestApiKey == null || requestApiKey.isBlank()) {
+            sendUnauthorized(response, "API key is required");
+            return;
+        }
 
-		boolean validKey = MessageDigest.isEqual(requestApiKey.getBytes(StandardCharsets.UTF_8),
-				apiKey.getBytes(StandardCharsets.UTF_8));
+        boolean validKey = MessageDigest.isEqual(
+                requestApiKey.getBytes(StandardCharsets.UTF_8),
+                apiKey.getBytes(StandardCharsets.UTF_8)
+        );
 
-		if (!validKey) {
-			sendUnauthorized(response, "Invalid API key");
-			return;
-		}
+        if (!validKey) {
+            sendUnauthorized(response, "Invalid API key");
+            return;
+        }
 
-		filterChain.doFilter(request, response);
-	}
+        filterChain.doFilter(request, response);
+    }
 
-	private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
+    private void sendUnauthorized(
+            HttpServletResponse response,
+            String message) throws IOException {
 
-		response.setStatus(HttpStatus.UNAUTHORIZED.value());
-		response.setContentType("application/json");
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType("application/json");
 
-		response.getWriter().write("""
-				{
-				    "success": false,
-				    "message": "%s"
-				}
-				""".formatted(message));
-	}
+        response.getWriter().write("""
+                {
+                    "success": false,
+                    "message": "%s"
+                }
+                """.formatted(message));
+    }
 }
